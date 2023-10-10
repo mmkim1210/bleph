@@ -1,4 +1,4 @@
-using XLSX, DataFrames, Statistics, Dates, MixedModels, CairoMakie, Random, StatsBase, Printf
+using XLSX, DataFrames, Statistics, Dates, MixedModels, CairoMakie, Random, StatsBase, Printf, HypothesisTests
 
 df  = DataFrame(XLSX.readtable("data/bleph-cw-v2.xlsx", 2))
 rename!(df,
@@ -225,13 +225,59 @@ end
 
 begin
     f = Figure()
-    axs = [Axis(f[i, j]) for i in 1:1, j in 1:3]
+    axs = [Axis(f[i, j]) for i in 2:2, j in 1:3]
     for (j, measure) in enumerate(["MRD1", "TPS", "BFS"])
         scatter!(axs[1, j], repeat([1], nrow(df)), df[!, "OD" * measure * "c" * "T0"], color = ("black", 0.5))
         scatter!(axs[1, j], repeat([2], nrow(df)), df[!, "OD" * measure * "c" * "T1"], color = ("black", 0.5))
         for k in 1:nrow(df)
             lines!(axs[1, j], [1, 2], [df[k, "OD" * measure * "c" * "T0"], df[k, "OD" * measure * "c" * "T1"]], color = ("red", 0.3))
         end
+        p = @sprintf "%.2E" pvalue(SignedRankTest(df[!, "OD" * measure * "c" * "T0"], df[!, "OD" * measure * "c" * "T1"]))
+        text!(axs[1, j], 2.15, 0, text = "p = " * p, align = (:right, :top))
+        Box(f[1, j], color = :gray90)
+        Label(f[1, j], measure, tellwidth = false, padding = (3, 3, 3, 3))
     end
+    [xlims!(axs[i, j], 0.75, 2.25) for i in 1:1, j in 1:3]
+    [axs[i, j].xticks = ([1, 2], ["pre-op", "post-op"]) for i in 1:1, j in 1:3]
+    [hidexdecorations!(axs[i, j], ticklabels = false) for i in 1:1, j in 1:3]
+    rowgap!(f.layout, 1, 0)
+    save("figs/MRD1-TPS-BFS-post-op-short-term-changes.pdf", f)
     f
 end
+
+SignedRankTest(df[!, "ODBFScT1"], df[!, "ODBFScT0"])
+SignedRankTest(df[!, "ODMRD1cT1"], df[!, "ODMRD1cT0"])
+SignedRankTest(df[!, "ODTPScT1"], df[!, "ODTPScT0"])
+
+# p = @sprintf "%.2E" pvalue(SignedRankTest(preq1[:, i + 2], postq[:, i + 2]))
+
+begin
+    patient = unique(newdf.individual)
+    f = Figure()
+    axs = [Axis(f[i, j]) for i in 1:7, j in 1:7]
+    for i in 1:7
+        for j in 1:7
+            ind = 7 * (i - 1) + j
+            storage = filter(row -> row.individual == patient[ind], newdf)
+            scatter!(axs[i, j], storage.ΔT, storage.ODBFSc)
+        end
+    end
+    resize_to_layout!(f)
+    f
+end
+
+m1 = fit(MixedModel, @formula(ODTPSc ~ 1 + ΔT + (1 + ΔT|individual)), newdf)
+
+# https://github.com/JuliaStats/MixedModels.jl
+
+scatter(newdf.ΔT, newdf.ODMRD1c)
+scatter(newdf.ΔT, newdf.ODTPSc)
+scatter(newdf.ΔT, newdf.ODBFSc)
+
+cor(convert(Vector{Float64}, df[!, "OD MRD1 converted T0"]), convert(Vector{Float64}, df[!, "OS MRD1 converted T0"]))
+cor(convert(Vector{Float64}, df[!, "OD TPS converted T0"]), convert(Vector{Float64}, df[!, "OS TPS converted T0"]))
+cor(convert(Vector{Float64}, df[!, "OD BFS converted T0"]), convert(Vector{Float64}, df[!, "OS BFS converted T0"]))
+
+cor(convert(Vector{Float64}, df[!, "ODMRD1T0"]), convert(Vector{Float64}, df[!, "ODTPST0"]))
+cor(convert(Vector{Float64}, df[!, "OD MRD1 converted T0"]), convert(Vector{Float64}, df[!, "OD BFS converted T0"]))
+cor(convert(Vector{Float64}, df[!, "OD TPS converted T0"]), convert(Vector{Float64}, df[!, "OD BFS converted T0"]))

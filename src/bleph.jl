@@ -1,4 +1,4 @@
-using XLSX, DataFrames, Statistics, Dates, MixedModels, CairoMakie, Random, StatsBase
+using XLSX, DataFrames, Statistics, Dates, MixedModels, CairoMakie, Random, StatsBase, Printf
 
 df  = DataFrame(XLSX.readtable("data/bleph-cw-v2.xlsx", 2))
 rename!(df,
@@ -130,5 +130,108 @@ for i in 1:nrow(df)
     end
 end
 
+df[19, "T3"] = missing
+df[19, "ΔT3"] = missing
+df[53, "T4"] = missing
+df[53, "ΔT4"] = missing
+df[56, "T5"] = missing
+df[56, "ΔT5"] = missing
+
 pairwise(cor, eachcol([df[!, "ODMRD1T0"] df[!, "ODTPST0"] df[!, "ODBFST0"]]), skipmissing = :pairwise)
 pairwise(cor, eachcol([df[!, "ODMRD1cT0"] df[!, "ODTPScT0"] df[!, "ODBFScT0"]]), skipmissing = :pairwise)
+
+for i in ["MRD1", "TPS", "BFS"]
+    for j in ["T0", "T1"]
+        for k in ["OD", "OS"]
+            df[!, k * i * "c" * j] = convert(Vector{Float64}, df[!, k * i * "c" * j])
+            df[!, k * i * j] = convert(Vector{Float64}, df[!, k * i * j])
+        end
+    end
+end
+
+newdf = DataFrame(individual = Float64[], ΔT = Float64[], ODMRD1c = Float64[], ODTPSc = Float64[], ODBFSc = Float64[])
+for i in 1:nrow(df)
+    for j in 1:6
+        if !ismissing(df[i, "ΔT$j"])
+            push!(newdf, [df[i, "individual"] df[i, "ΔT$j"] df[i, "ODMRD1cT$j"] df[i, "ODTPScT$j"] df[i, "ODBFScT$j"]])
+        end
+    end
+end
+
+idx = findfirst(>(50), df[!, "ODTPScT1"])
+df[idx, "ODTPScT1"] = df[idx, "OSTPScT1"]
+
+begin
+    f = Figure()
+    axs = [Axis(f[i, j]) for i in 2:3, j in 1:3]
+    for (j, measure) in enumerate(["MRD1", "TPS", "BFS"])
+        for (i, time) in enumerate(["T0", "T1"])
+            scatter!(axs[i, j], df[!, "OD" * measure * "c" * time], df[!, "OS" * measure * "c" * time], color = ("black", 0.5))
+            text!(axs[i, j], maximum(df[!, "OD" * measure * "c" * time]), minimum(df[!, "OS" * measure * "c" * time]), 
+                text = "R = $(round(cor(df[!, "OD" * measure * "c" * time], df[!, "OS" * measure * "c" * time]); sigdigits = 2))", 
+                align = (:right, :bottom))
+        end
+    end
+    [hidedecorations!(axs[i, j], ticklabels = false, ticks = false) for i in 1:2, j in 1:3]
+    titles = ["MRD1", "TPS1", "BFS"]
+    for (i, title) in enumerate(titles)
+        Box(f[1, i], color = :gray90)
+        Label(f[1, i], title, tellwidth = false, padding = (3, 3, 3, 3))
+    end
+    Box(f[2, 4], color = :gray90)
+    Label(f[2, 4], "Pre-op", tellheight = false, rotation = -pi / 2, padding = (3, 3, 3, 3))
+    Box(f[3, 4], color = :gray90)
+    Label(f[3, 4], "Post-op", tellheight = false, rotation = -pi / 2, padding = (3, 3, 3, 3))
+    rowgap!(f.layout, 1, 0)
+    colgap!(f.layout, 3, 0)
+    Label(f[2:3, 0], text = "OS measurements", rotation = pi / 2)
+    Label(f[4, 1:3], text = "OD measurements")
+    save("figs/OD-OS-correlation.pdf", f)
+    f
+end
+
+begin
+    f = Figure()
+    axs = [Axis(f[i, j]) for i in 1:2, j in 1:3]
+    for (i, time) in enumerate(["T0", "T1"])
+        scatter!(axs[i, 1], df[!, "ODMRD1c" * time], df[!, "ODTPSc" * time], color = ("black", 0.5))
+        scatter!(axs[i, 2], df[!, "ODMRD1c" * time], df[!, "ODBFSc" * time], color = ("black", 0.5))
+        scatter!(axs[i, 3], df[!, "ODTPSc" * time], df[!, "ODBFSc" * time], color = ("black", 0.5))
+        text!(axs[i, 1], maximum(df[!, "ODMRD1c" * time]), maximum(df[!, "ODTPSc" * time]), 
+            text = "R = $(round(cor(df[!, "ODMRD1c" * time], df[!, "ODTPSc" * time]); sigdigits = 2))", 
+            align = (:right, :top))
+        text!(axs[i, 2], maximum(df[!, "ODMRD1c" * time]), maximum(df[!, "ODBFSc" * time]), 
+            text = "R = $(round(cor(df[!, "ODMRD1c" * time], df[!, "ODBFSc" * time]); sigdigits = 2))", 
+            align = (:right, :top))
+        text!(axs[i, 3], maximum(df[!, "ODTPSc" * time]), maximum(df[!, "ODBFSc" * time]), 
+            text = "R = $(round(cor(df[!, "ODTPSc" * time], df[!, "ODBFSc" * time]); sigdigits = 2))", 
+            align = (:right, :top))
+    end
+    [hidedecorations!(axs[i, j], ticklabels = false, ticks = false) for i in 1:2, j in 1:3]
+    Label(f[1:2, 1, Left()], "OD TPS", rotation = pi / 2, padding = (0, 40, 0, 0))
+    Label(f[2, 1, Bottom()], "OD MRD1", padding = (0, 0, 0, 40))
+    Label(f[1:2, 2, Left()], "OD BFS", rotation = pi / 2, padding = (0, 40, 0, 0))
+    Label(f[2, 2, Bottom()], "OD MRD1", padding = (0, 0, 0, 40))
+    Label(f[1:2, 3, Left()], "OD BFS", rotation = pi / 2, padding = (0, 40, 0, 0))
+    Label(f[2, 3, Bottom()], "OD TPS", padding = (0, 0, 0, 40))
+    Box(f[1, 4], color = :gray90)
+    Label(f[1, 4], "Pre-op", tellheight = false, rotation = -pi / 2, padding = (3, 3, 3, 3))
+    Box(f[2, 4], color = :gray90)
+    Label(f[2, 4], "Post-op", tellheight = false, rotation = -pi / 2, padding = (3, 3, 3, 3))
+    colgap!(f.layout, 3, 0)
+    save("figs/MRD1-TPS-BFS-correlation.pdf", f)
+    f
+end
+
+begin
+    f = Figure()
+    axs = [Axis(f[i, j]) for i in 1:1, j in 1:3]
+    for (j, measure) in enumerate(["MRD1", "TPS", "BFS"])
+        scatter!(axs[1, j], repeat([1], nrow(df)), df[!, "OD" * measure * "c" * "T0"], color = ("black", 0.5))
+        scatter!(axs[1, j], repeat([2], nrow(df)), df[!, "OD" * measure * "c" * "T1"], color = ("black", 0.5))
+        for k in 1:nrow(df)
+            lines!(axs[1, j], [1, 2], [df[k, "OD" * measure * "c" * "T0"], df[k, "OD" * measure * "c" * "T1"]], color = ("red", 0.3))
+        end
+    end
+    f
+end

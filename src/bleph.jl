@@ -1,4 +1,4 @@
-using XLSX, DataFrames, Statistics, Dates, MixedModels, CairoMakie, Random, StatsBase, Printf, HypothesisTests
+using XLSX, DataFrames, Statistics, Dates, MixedModels, CairoMakie, Random, StatsBase, Printf, HypothesisTests, Distributions
 
 df  = DataFrame(XLSX.readtable("data/bleph-cw-v2.xlsx", 2))
 rename!(df,
@@ -149,6 +149,9 @@ for i in ["MRD1", "TPS", "BFS"]
     end
 end
 
+idx = findfirst(>(50), df[!, "ODTPScT1"])
+df[idx, "ODTPScT1"] = df[idx, "OSTPScT1"]
+
 newdf = DataFrame(individual = Float64[], ΔT = Float64[], ODMRD1c = Float64[], ODTPSc = Float64[], ODBFSc = Float64[])
 for i in 1:nrow(df)
     for j in 1:6
@@ -157,9 +160,6 @@ for i in 1:nrow(df)
         end
     end
 end
-
-idx = findfirst(>(50), df[!, "ODTPScT1"])
-df[idx, "ODTPScT1"] = df[idx, "OSTPScT1"]
 
 begin
     f = Figure()
@@ -245,14 +245,34 @@ begin
     f
 end
 
-SignedRankTest(df[!, "ODBFScT1"], df[!, "ODBFScT0"])
 SignedRankTest(df[!, "ODMRD1cT1"], df[!, "ODMRD1cT0"])
 SignedRankTest(df[!, "ODTPScT1"], df[!, "ODTPScT0"])
+SignedRankTest(df[!, "ODBFScT1"], df[!, "ODBFScT0"])
 
-# p = @sprintf "%.2E" pvalue(SignedRankTest(preq1[:, i + 2], postq[:, i + 2]))
+patient = unique(newdf.individual)
+patient_subset = Float64[]
+for p in patient
+    if count(==(p), newdf.individual) > 2
+        push!(patient_subset, p)
+    end
+end    
+
+m1 = fit(MixedModel, @formula(ODBFSc ~ 1 + ΔT + (1 + ΔT|individual)), newdf)
+m0 = fit(MixedModel, @formula(ODBFSc ~ 1 + (1 + ΔT|individual)), newdf)
+
+ccdf(Chisq(dof(m1) - dof(m0)), 2 * (loglikelihood(m1) - loglikelihood(m0))) # LRT
+
+m1 = fit(MixedModel, @formula(ODMRD1c ~ 1 + ΔT + (1 + ΔT|individual)), newdf)
+m0 = fit(MixedModel, @formula(ODMRD1c ~ 1 + (1 + ΔT|individual)), newdf)
+
+ccdf(Chisq(dof(m1) - dof(m0)), 2 * (loglikelihood(m1) - loglikelihood(m0))) # LRT
+
+m1 = fit(MixedModel, @formula(ODTPSc ~ 1 + ΔT + (1 + ΔT|individual)), newdf)
+m0 = fit(MixedModel, @formula(ODTPSc ~ 1 + (1 + ΔT|individual)), newdf)
+
+ccdf(Chisq(dof(m1) - dof(m0)), 2 * (loglikelihood(m1) - loglikelihood(m0))) # LRT
 
 begin
-    patient = unique(newdf.individual)
     f = Figure()
     axs = [Axis(f[i, j]) for i in 1:7, j in 1:7]
     for i in 1:7
@@ -266,18 +286,6 @@ begin
     f
 end
 
-m1 = fit(MixedModel, @formula(ODTPSc ~ 1 + ΔT + (1 + ΔT|individual)), newdf)
-
-# https://github.com/JuliaStats/MixedModels.jl
-
-scatter(newdf.ΔT, newdf.ODMRD1c)
-scatter(newdf.ΔT, newdf.ODTPSc)
-scatter(newdf.ΔT, newdf.ODBFSc)
-
-cor(convert(Vector{Float64}, df[!, "OD MRD1 converted T0"]), convert(Vector{Float64}, df[!, "OS MRD1 converted T0"]))
-cor(convert(Vector{Float64}, df[!, "OD TPS converted T0"]), convert(Vector{Float64}, df[!, "OS TPS converted T0"]))
-cor(convert(Vector{Float64}, df[!, "OD BFS converted T0"]), convert(Vector{Float64}, df[!, "OS BFS converted T0"]))
-
-cor(convert(Vector{Float64}, df[!, "ODMRD1T0"]), convert(Vector{Float64}, df[!, "ODTPST0"]))
-cor(convert(Vector{Float64}, df[!, "OD MRD1 converted T0"]), convert(Vector{Float64}, df[!, "OD BFS converted T0"]))
-cor(convert(Vector{Float64}, df[!, "OD TPS converted T0"]), convert(Vector{Float64}, df[!, "OD BFS converted T0"]))
+# scatter(newdf.ΔT, newdf.ODMRD1c)
+# scatter(newdf.ΔT, newdf.ODTPSc)
+# scatter(newdf.ΔT, newdf.ODBFSc)

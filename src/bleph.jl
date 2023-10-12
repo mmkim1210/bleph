@@ -283,6 +283,7 @@ ccdf(Chisq(dof(m1) - dof(m0)), 2 * (loglikelihood(m1) - loglikelihood(m0))) # LR
 
 m1 = fit(MixedModel, @formula(ODMRD1c ~ 1 + ΔT + (1 + ΔT|individual)), newdf)
 m0 = fit(MixedModel, @formula(ODMRD1c ~ 1 + (1 + ΔT|individual)), newdf)
+raneftables(m1)[1]
 
 ccdf(Chisq(dof(m1) - dof(m0)), 2 * (loglikelihood(m1) - loglikelihood(m0))) # LRT
 
@@ -303,10 +304,62 @@ begin
             xlims!(axs[i, j], -1, 21)
             ylims!(axs[i, j], minimum(newdf.ODMRD1c) - 1, maximum(newdf.ODMRD1c) + 1)
             m = lm(@formula(ODMRD1c ~ ΔT), storage)
-            ablines!(axs[i, j], coef(m)[1], coef(m)[2], color = "#389826") #CB3C33
+            ablines!(axs[i, j], coef(m)[1], coef(m)[2], color = "#389826")
+            m1 = fit(MixedModel, @formula(ODMRD1c ~ 1 + ΔT + (1 + ΔT|individual)), newdf)
+            idx = findfirst(==(patient_subset[ind]), df.individual)
+            ablines!(axs[i, j], ranef(m1)[1][1, idx] + coef(m1)[1], ranef(m1)[1][2, idx] + coef(m1)[2], color = "#CB3C33")
         end
     end
     [hidedecorations!(axs[i, j], ticklabels = false, ticks = false) for i in 1:5, j in 1:5]
     resize_to_layout!(f)
+    save("figs/MRD1-post-op-long-term-changes-lmm.pdf", f)
+    f
+end
+
+begin
+    f = Figure()
+    axs = [Axis(f[i, j]) for i in 1:5, j in 1:5]
+    for i in 1:5
+        for j in 1:5
+            ind = 5 * (i - 1) + j
+            storage = filter(row -> row.individual == patient_subset[ind], newdf)
+            scatter!(axs[i, j], storage.ΔT, storage.ODTPSc, color = "#4063D8")
+            ablines!(axs[i, j], mall[2, 1], mall[2, 2], color = :gold)
+            xlims!(axs[i, j], -1, 21)
+            ylims!(axs[i, j], minimum(newdf.ODTPSc) - 1, maximum(newdf.ODTPSc) + 1)
+            m = lm(@formula(ODTPSc ~ ΔT), storage)
+            ablines!(axs[i, j], coef(m)[1], coef(m)[2], color = "#389826")
+            m1 = fit(MixedModel, @formula(ODTPSc ~ 1 + ΔT + (1 + ΔT|individual)), newdf)
+            idx = findfirst(==(patient_subset[ind]), df.individual)
+            ablines!(axs[i, j], ranef(m1)[1][1, idx] + coef(m1)[1], ranef(m1)[1][2, idx] + coef(m1)[2], color = "#CB3C33")
+        end
+    end
+    [hidedecorations!(axs[i, j], ticklabels = false, ticks = false) for i in 1:5, j in 1:5]
+    resize_to_layout!(f)
+    save("figs/TPS-post-op-long-term-changes-lmm.pdf", f)
+    f
+end
+
+begin
+    f = Figure()
+    axs = [Axis(f[i, j]) for i in 1:5, j in 1:5]
+    for i in 1:5
+        for j in 1:5
+            ind = 5 * (i - 1) + j
+            storage = filter(row -> row.individual == patient_subset[ind], newdf)
+            scatter!(axs[i, j], storage.ΔT, storage.ODBFSc, color = "#4063D8")
+            ablines!(axs[i, j], mall[3, 1], mall[3, 2], color = :gold)
+            xlims!(axs[i, j], -1, 21)
+            ylims!(axs[i, j], minimum(newdf.ODBFSc) - 1, maximum(newdf.ODBFSc) + 1)
+            m = lm(@formula(ODBFSc ~ ΔT), storage)
+            ablines!(axs[i, j], coef(m)[1], coef(m)[2], color = "#389826")
+            m1 = fit(MixedModel, @formula(ODBFSc ~ 1 + ΔT + (1 + ΔT|individual)), newdf)
+            idx = findfirst(==(patient_subset[ind]), df.individual)
+            ablines!(axs[i, j], ranef(m1)[1][1, idx] + coef(m1)[1], ranef(m1)[1][2, idx] + coef(m1)[2], color = "#CB3C33")
+        end
+    end
+    [hidedecorations!(axs[i, j], ticklabels = false, ticks = false) for i in 1:5, j in 1:5]
+    resize_to_layout!(f)
+    save("figs/BFS-post-op-long-term-changes-lmm.pdf", f)
     f
 end

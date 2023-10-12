@@ -1,4 +1,4 @@
-using XLSX, DataFrames, Statistics, Dates, MixedModels, CairoMakie, Random, StatsBase, Printf, HypothesisTests, Distributions
+using XLSX, DataFrames, Statistics, Dates, MixedModels, CairoMakie, Random, StatsBase, Printf, HypothesisTests, Distributions, GLM
 
 df  = DataFrame(XLSX.readtable("data/bleph-cw-v2.xlsx", 2))
 rename!(df,
@@ -238,16 +238,12 @@ begin
         Label(f[1, j], measure, tellwidth = false, padding = (3, 3, 3, 3))
     end
     [xlims!(axs[i, j], 0.75, 2.25) for i in 1:1, j in 1:3]
-    [axs[i, j].xticks = ([1, 2], ["pre-op", "post-op"]) for i in 1:1, j in 1:3]
+    [axs[i, j].xticks = ([1, 2], ["Pre-op", "Post-op"]) for i in 1:1, j in 1:3]
     [hidexdecorations!(axs[i, j], ticklabels = false) for i in 1:1, j in 1:3]
     rowgap!(f.layout, 1, 0)
     save("figs/MRD1-TPS-BFS-post-op-short-term-changes.pdf", f)
     f
 end
-
-SignedRankTest(df[!, "ODMRD1cT1"], df[!, "ODMRD1cT0"])
-SignedRankTest(df[!, "ODTPScT1"], df[!, "ODTPScT0"])
-SignedRankTest(df[!, "ODBFScT1"], df[!, "ODBFScT0"])
 
 patient = unique(newdf.individual)
 patient_subset = Float64[]
@@ -255,7 +251,30 @@ for p in patient
     if count(==(p), newdf.individual) > 2
         push!(patient_subset, p)
     end
-end    
+end
+
+begin
+    m1 = lm(@formula(ODMRD1c ~ ΔT), newdf)
+    m2 = lm(@formula(ODTPSc ~ ΔT), newdf)
+    m3 = lm(@formula(ODBFSc ~ ΔT), newdf)
+    mall = [coef(m1)[1] coef(m1)[2];
+        coef(m2)[1] coef(m2)[2];
+        coef(m3)[1] coef(m3)[2]]
+end
+
+begin
+    f = Figure()
+    axs = [Axis(f[i, j]) for i in 2:2, j in 1:3]
+    for (j, measure) in enumerate(["MRD1", "TPS", "BFS"])
+        scatter!(axs[1, j], newdf[!, "ΔT"], newdf[!, "OD" * measure * "c"], color = ("black", 0.5))
+        Box(f[1, j], color = :gray90)
+        Label(f[1, j], measure, tellwidth = false, padding = (3, 3, 3, 3))
+        ablines!(axs[1, j], mall[j, 1], mall[j, 2], color = :gold)
+    end
+    rowgap!(f.layout, 1, 0)
+    save("figs/MRD1-TPS-BFS-post-op-long-term-changes.pdf", f)
+    f
+end
 
 m1 = fit(MixedModel, @formula(ODBFSc ~ 1 + ΔT + (1 + ΔT|individual)), newdf)
 m0 = fit(MixedModel, @formula(ODBFSc ~ 1 + (1 + ΔT|individual)), newdf)
@@ -274,18 +293,20 @@ ccdf(Chisq(dof(m1) - dof(m0)), 2 * (loglikelihood(m1) - loglikelihood(m0))) # LR
 
 begin
     f = Figure()
-    axs = [Axis(f[i, j]) for i in 1:7, j in 1:7]
-    for i in 1:7
-        for j in 1:7
-            ind = 7 * (i - 1) + j
-            storage = filter(row -> row.individual == patient[ind], newdf)
-            scatter!(axs[i, j], storage.ΔT, storage.ODBFSc)
+    axs = [Axis(f[i, j]) for i in 1:5, j in 1:5]
+    for i in 1:5
+        for j in 1:5
+            ind = 5 * (i - 1) + j
+            storage = filter(row -> row.individual == patient_subset[ind], newdf)
+            scatter!(axs[i, j], storage.ΔT, storage.ODMRD1c, color = "#4063D8")
+            ablines!(axs[i, j], mall[1, 1], mall[1, 2], color = :gold)
+            xlims!(axs[i, j], -1, 21)
+            ylims!(axs[i, j], minimum(newdf.ODMRD1c) - 1, maximum(newdf.ODMRD1c) + 1)
+            m = lm(@formula(ODMRD1c ~ ΔT), storage)
+            ablines!(axs[i, j], coef(m)[1], coef(m)[2], color = "#389826") #CB3C33
         end
     end
+    [hidedecorations!(axs[i, j], ticklabels = false, ticks = false) for i in 1:5, j in 1:5]
     resize_to_layout!(f)
     f
 end
-
-# scatter(newdf.ΔT, newdf.ODMRD1c)
-# scatter(newdf.ΔT, newdf.ODTPSc)
-# scatter(newdf.ΔT, newdf.ODBFSc)

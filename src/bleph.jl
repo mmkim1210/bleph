@@ -311,6 +311,8 @@ begin
         end
     end
     [hidedecorations!(axs[i, j], ticklabels = false, ticks = false) for i in 1:5, j in 1:5]
+    Label(f[1:5, 0], text = "MRD1", rotation = pi / 2)
+    Label(f[6, 1:5], text = "Time (years)")
     resize_to_layout!(f)
     save("figs/MRD1-post-op-long-term-changes-lmm.pdf", f)
     f
@@ -335,6 +337,8 @@ begin
         end
     end
     [hidedecorations!(axs[i, j], ticklabels = false, ticks = false) for i in 1:5, j in 1:5]
+    Label(f[1:5, 0], text = "TPS", rotation = pi / 2)
+    Label(f[6, 1:5], text = "Time (years)")
     resize_to_layout!(f)
     save("figs/TPS-post-op-long-term-changes-lmm.pdf", f)
     f
@@ -359,7 +363,10 @@ begin
         end
     end
     [hidedecorations!(axs[i, j], ticklabels = false, ticks = false) for i in 1:5, j in 1:5]
+    Label(f[1:5, 0], text = "BFS", rotation = pi / 2)
+    Label(f[6, 1:5], text = "Time (years)")
     resize_to_layout!(f)
     save("figs/BFS-post-op-long-term-changes-lmm.pdf", f)
+    save("figs/BFS-post-op-long-term-changes-lmm.png", f)
     f
 end
